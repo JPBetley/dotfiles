@@ -1,4 +1,128 @@
-syntax on
+set nocompatible              " be iMproved
+filetype off                  " required!
 
-" Wrap gitcommit file types at the appropriate length
-filetype indent plugin on
+set rtp+=~/.vim/bundle/vundle/
+call vundle#rc()
+
+" let Vundle manage Vundle
+" required! 
+Bundle 'gmarik/vundle'
+
+" Vundles
+Bundle 'kien/ctrlp.vim'
+Bundle 'scrooloose/nerdtree'
+Bundle 'Lokaltog/powerline', {'rtp': 'powerline/bindings/vim/'}
+Bundle "mattn/emmet-vim"
+Bundle "daylerees/colour-schemes", { "rtp": "vim/" }
+Bundle "mattn/webapi-vim"
+Bundle "mattn/gist-vim"
+Bundle "scrooloose/nerdcommenter"
+Bundle "scrooloose/syntastic"
+Bundle "nathanaelkane/vim-indent-guides"
+Bundle "kien/rainbow_parentheses.vim"
+
+filetype plugin indent on     " required!
+
+" Settings
+set number
+syntax enable
+syntax on
+set showcmd
+set showmode
+colorscheme Peacock
+
+" MacVim Settings
+set guifont=menlo\ for\ powerline:h16
+set guioptions-=T " Removes top toolbar
+set guioptions-=r " Removes right hand scroll bar
+set go-=L " Removes left hand scroll bar
+set linespace=15
+
+" Text Settings
+set smartindent
+set tabstop=4
+set softtabstop=4
+set shiftwidth=4
+set shiftround
+set expandtab
+set backspace=indent,eol,start  " allow backspacing over everything in insert mode
+set nowrap
+set autoindent                  " always set autoindenting on
+set copyindent                  " copy the previous indentation on autoindenting
+set ignorecase                  " ignore case when searching
+set smartcase                   " ignore case if search pattern is all lowercase
+set timeout timeoutlen=200 ttimeoutlen=100
+set autowrite  "Save on buffer switch
+set mouse=a
+
+" No error noise on
+" bad key-strokes, etc
+set visualbell
+set noerrorbells
+
+" Change backup and swap dirs
+" So these files don't appear in
+" our project directories
+set backupdir=~/.vim/backup//
+set directory=~/.vim/swap//
+
+" Set leader to comma
+let mapleader = ","
+let g:mapleader = ","
+
+" Save via ',w'
+nmap <leader>w :w!<cr>
+
+" Exit insert mode via 'jj'
+imap jj <esc>
+
+" Down is really the next line
+nnoremap j gj
+nnoremap k gk
+
+" Navigation Settings
+" move to beginning/end of line
+nnoremap B ^
+nnoremap E $
+
+" $/^ doesn't do anything
+nnoremap $ <nop>
+nnoremap ^ <nop>
+
+" CtrlP Stuff
+" Familiar commands for file/symbol browsing
+map <D-p> :CtrlP<cr>
+map <C-r> :CtrlPBufTag<cr>
+
+ 
+" I don't want to pull up these folders/files when calling CtrlP
+set wildignore+=*/vendor/**
+
+"easier window navigation
+nmap <C-h> <C-w>h
+nmap <C-j> <C-w>j
+nmap <C-k> <C-w>k
+nmap <C-l> <C-w>l
+
+" Powerline (Fancy thingy at bottom stuff)
+let g:Powerline_symbols = 'fancy'
+set laststatus=2   " Always show the statusline
+set encoding=utf-8 " Necessary to show Unicode glyphs
+set noshowmode " Hide the default mode text (e.g. -- INSERT -- below the statusline)
+
+" Rainbow Parenthesis
+let g:rbpt_max = 16
+let g:rbpt_loadcmd_toggle = 0
+au VimEnter * RainbowParenthesesToggle
+au Syntax * RainbowParenthesesLoadRound
+au Syntax * RainbowParenthesesLoadSquare
+au Syntax * RainbowParenthesesLoadBraces
+
+" Auto-remove trailing spaces
+autocmd BufWritePre *.php :%s/\s\+$//e
+
+
+" Ctrl-n for NERDTree
+map <C-n> :NERDTreeToggle<CR>
+map <D-t> :NERDTreeToggle<CR>
+
