@@ -1,82 +1,57 @@
-autoload colors && colors
-# cheers, @ehrenmurdick
-# http://github.com/ehrenmurdick/config/blob/master/zsh/prompt.zsh
-
-if (( $+commands[git] ))
-then
-  git="$commands[git]"
-else
-  git="/usr/bin/git"
+if [[ -z $ZSH_THEME_CLOUD_PREFIX ]]; then
+    ZSH_THEME_CLOUD_PREFIX='☁'
 fi
 
-git_branch() {
-  echo $($git symbolic-ref HEAD 2>/dev/null | awk -F/ {'print $NF'})
+function git_prompt_info() {
+  ref=$(git symbolic-ref HEAD 2> /dev/null) || return
+  echo "$(parse_git_dirty)$ZSH_THEME_GIT_PROMPT_PREFIX$(current_branch)$ZSH_THEME_GIT_PROMPT_SUFFIX"
 }
 
-git_dirty() {
-  if $(! $git status -s &> /dev/null)
+function get_pwd() {
+  print -D $PWD
+}
+
+function battery_charge() {
+  if [ -e ~/bin/batcharge.py ]
   then
-    echo ""
+    echo `python ~/bin/batcharge.py`
   else
-    if [[ $($git status --porcelain) == "" ]]
-    then
-      echo "on %{$fg_bold[green]%}$(git_prompt_info)%{$reset_color%}"
-    else
-      echo "on %{$fg_bold[red]%}$(git_prompt_info)%{$reset_color%}"
-    fi
+    echo ''
   fi
 }
 
-git_prompt_info () {
- ref=$($git symbolic-ref HEAD 2>/dev/null) || return
-# echo "(%{\e[0;33m%}${ref#refs/heads/}%{\e[0m%})"
- echo "${ref#refs/heads/}"
-}
-
-unpushed () {
-  $git cherry -v @{upstream} 2>/dev/null
-}
-
-need_push () {
-  if [[ $(unpushed) == "" ]]
-  then
-    echo " "
+function put_spacing() {
+  local git=$(git_prompt_info)
+  if [ ${#git} != 0 ]; then
+    ((git=${#git} - 10))
   else
-    echo " with %{$fg_bold[magenta]%}unpushed%{$reset_color%} "
-  fi
-}
-
-ruby_version() {
-  if (( $+commands[rbenv] ))
-  then
-    echo "$(rbenv version | awk '{print $1}')"
+    git=0
   fi
 
-  if (( $+commands[rvm-prompt] ))
-  then
-    echo "$(rvm-prompt | awk '{print $1}')"
-  fi
-}
-
-rb_prompt() {
-  if ! [[ -z "$(ruby_version)" ]]
-  then
-    echo "%{$fg_bold[yellow]%}$(ruby_version)%{$reset_color%} "
+  local bat=$(battery_charge)
+  if [ ${#bat} != 0 ]; then
+    ((bat = ${#bat} - 18))
   else
-    echo ""
+    bat=0
   fi
+
+  local termwidth
+  (( termwidth = ${COLUMNS} - 6 - ${#HOST} - ${#$(get_pwd)} - ${bat} - ${git} ))
+
+  local spacing=""
+  for i in {1..$termwidth}; do
+    spacing="${spacing} " 
+  done
+  echo $spacing
 }
 
-directory_name() {
-  echo "%{$fg_bold[cyan]%}%1/%\/%{$reset_color%}"
+function precmd() {
+print -rP '%{$fg_bold[cyan]%}$ZSH_THEME_CLOUD_PREFIX  $fg[cyan]%m: $fg[yellow]$(get_pwd)$(put_spacing)$(git_prompt_info) $(battery_charge)'
 }
 
-export PROMPT=$'\n$(rb_prompt)in $(directory_name) $(git_dirty)$(need_push)\n› '
-set_prompt () {
-  export RPROMPT="%{$fg_bold[cyan]%}%{$reset_color%}"
-}
+PROMPT='%{$reset_color%}→ '
 
-precmd() {
-  title "zsh" "%m" "%55<...<%~"
-  set_prompt
-}
+ZSH_THEME_GIT_PROMPT_PREFIX="[git:"
+ZSH_THEME_GIT_PROMPT_SUFFIX="]$reset_color"
+ZSH_THEME_GIT_PROMPT_DIRTY="$fg[red]+"
+ZSH_THEME_GIT_PROMPT_CLEAN="$fg[green]"
