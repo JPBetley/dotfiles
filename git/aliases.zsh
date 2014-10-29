@@ -12,6 +12,7 @@ alias gaa='git add -A'
 alias gpll='git pull'
 alias gpllp='git pull --prune'
 alias gl="git log --graph --pretty=format:'%Cred%h%Creset %an: %s - %Creset %C(yellow)%d%Creset %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
+alias gp='git push origin HEAD'
 alias gpsh='git push origin HEAD'
 alias gpshu='git push -u origin HEAD'
 alias gd='git diff'
