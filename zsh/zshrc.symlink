@@ -4,7 +4,7 @@ export ZSHDOT=$HOME/.dotfiles
 # oh-my-zsh specifics
 export ZSH=$HOME/.oh-my-zsh
 ZSH_THEME="robbyrussell"
-plugins=(brew git github ruby sudo)
+plugins=(brew git github ruby sudo docker laravel5 npm)
 source $ZSH/oh-my-zsh.sh
 
 # your project folder that we can `c [tab]` to
