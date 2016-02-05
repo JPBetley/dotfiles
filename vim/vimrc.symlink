@@ -2,7 +2,29 @@ syntax enable
 
 colorscheme desert
 
-set backspace=indent,eol,start "Make backspace behave like every other editor
+set backspace=indent,eol,start 			"Make backspace behave like every other editor
+let mapleader = ","				"Comma leader key
+set number
+set linespace=15
+
+
+"----------------Search----------------"
+set hlsearch
+set incsearch
+
 
 "----------------Mappings----------------"
 
+"Make it easy to edit the vimrc file"
+nmap <Leader>ev :tabedit $MYVIMRC<cr>
+nmap <Leader><space> :nohlsearch<cr>
+nmap <Leader>w :w<cr>
+
+
+"----------------Auto-Commands----------------"
+
+"Automatically source the vimrc file on save.
+augroup autosourcing
+	autocmd!
+	autocmd BufWritePost .vimrc source %
+augroup END
