@@ -1,11 +1,15 @@
 syntax enable
 
-colorscheme desert
 
 set backspace=indent,eol,start 			"Make backspace behave like every other editor
 let mapleader = ","				"Comma leader key
 set number
 set linespace=15
+
+
+"----------------Visuals----------------"
+set background=dark
+colorscheme solarized
 
 
 "----------------Search----------------"
