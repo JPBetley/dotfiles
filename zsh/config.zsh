@@ -6,6 +6,7 @@ fi
 
 #export LSCOLORS="exfxcxdxbxegedabagacad"
 export CLICOLOR=true
+export TERM=xterm-256color
 
 fpath=($ZSHDOT/functions $fpath)
 
