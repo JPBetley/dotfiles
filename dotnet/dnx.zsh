@@ -1,0 +1,1 @@
+source ~/.dnx/dnvm/dnvm.sh
