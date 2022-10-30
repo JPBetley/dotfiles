@@ -1,5 +1,0 @@
-alias lsa='ls -lah'
-alias l='ls -lah'
-alias ll='ls -lh'
-alias la='ls -lAh'
-alias homestead='function __homestead() { (cd ~/Homestead && vagrant $*); unset -f __homestead; }; __homestead'
