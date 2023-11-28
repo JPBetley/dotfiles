@@ -2,7 +2,7 @@
 # alias phpunit="vendor/bin/phpunit"
 alias phpunitw="phpunit-watcher watch"
 alias a="php artisan"
-alias ar="php artisan remote"
+# alias ar="php artisan remote"
 alias c="composer"
 alias cu="composer update"
 alias cr="composer require"
@@ -10,17 +10,17 @@ alias ci="composer install"
 alias cda="composer dump-autoload -o"
 alias larastan="phpstan analyse"
 alias hostfile="sudo vi /etc/hosts"
-alias deploy='envoy run deploy'
-alias deploy-code='envoy run deploy-code'
+# alias deploy='envoy run deploy'
+# alias deploy-code='envoy run deploy-code'
 alias mfs='php artisan migrate:fresh --seed'
 alias nah='git reset --hard;git clean -df'
 
-alias pp="php artisan test --parallel"
-alias d="php artisan dusk"
+# alias pp="php artisan test --parallel"
+# alias d="php artisan dusk"
 alias sshconfig="vi ~/.ssh/config"
 alias copykey='command cat ~/.ssh/id_rsa.public | pbcopy'
 # alias sail='./vendor/bin/sail'
-alias tunnel='valet share -subdomain=freekmurze -region=eu'
+# alias tunnel='valet share -subdomain=freekmurze -region=eu'
 
 # JavaScript
 # alias jest="./node_modules/.bin/jest"
@@ -38,21 +38,14 @@ alias glog="git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset
 alias o="open ."
 
 # List all files colorized in long format
-alias l="ls -laF"
+alias l="ls -lah"
 
 # PhpStorm
 alias phpstorm='open -a /Applications/PhpStorm.app "`pwd`"'
 alias storm='open -a /Applications/PhpStorm.app "`pwd`"'
 
-# PHP
-alias switch-php80="brew unlink php@7.4 && brew link --overwrite --force php"
-alias switch-php74="brew unlink php && brew link --overwrite --force php@7.4"
-
 # Redis
 alias flush-redis="redis-cli FLUSHALL"
-
-# # VSCode
-# alias code='open -a "/Applications/Visual Studio Code.app" "`pwd`"'
 
 # Show/hide hidden files in Finder
 alias show="defaults write com.apple.finder AppleShowAllFiles -bool true && killall Finder"
