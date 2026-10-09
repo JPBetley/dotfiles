@@ -1,0 +1,3 @@
+# Literal $VARS in single quotes are deliberate here: Managed lines and shell
+# snippets are written out verbatim.
+disable=SC2016

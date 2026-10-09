@@ -107,6 +107,53 @@ step_link() {
 		[ -n "$src" ] || continue
 		link_one "$src" "$dest"
 	done <<< "$LINKS"
+	link_stubs
+}
+
+# Stubs: machine-owned files that other tools write to (see ADR 0001). Link
+# only ensures each holds exactly one Managed line, ending in the marker.
+MARKER="# dotfiles:link"
+
+# Usage: stub <$HOME path> <line to manage, without the marker> [once]
+# Lines containing the optional "once" text are de-duplicated, keeping the first.
+stub() {
+	local dest="$HOME/$1" managed="$2 $MARKER" once="${3:-}" new
+	local existing="$dest"
+	# A symlinked (or non-file) Stub would be written through, so set it aside.
+	if [ -L "$dest" ] || { [ -e "$dest" ] && [ ! -f "$dest" ]; }; then
+		backup "$dest"
+		existing=/dev/null
+	fi
+	new="$(mktemp)"
+	if [ -s "$existing" ]; then
+		awk -v managed="$managed" -v marker="$MARKER" -v once="$once" '
+			{ line[NR] = $0 }
+			END {
+				# The Managed line goes where the first marked line is; with
+				# none, adopt an unmarked line that sources the repo.
+				for (i = 1; i <= NR; i++) if (index(line[i], marker)) { at = i; break }
+				if (!at) for (i = 1; i <= NR; i++)
+					if (line[i] ~ /^[ \t]*(source|\.)[ \t].*\.dotfiles\//) { at = i; break }
+				if (!at) print managed
+				for (i = 1; i <= NR; i++) {
+					if (i == at) print managed
+					else if (index(line[i], marker)) continue
+					else if (once != "" && index(line[i], once) && seen++) continue
+					else print line[i]
+				}
+			}' "$existing" > "$new"
+	else
+		printf '%s\n' "$managed" > "$new"
+	fi
+	if ! cmp -s "$new" "$existing"; then
+		act "stub    $(pretty "$dest")" cp "$new" "$dest"
+	fi
+	rm -f "$new"
+}
+
+link_stubs() {
+	stub .zshrc 'source "$HOME/.dotfiles/shell/.zshrc"'
+	stub .zprofile 'source "$HOME/.dotfiles/shell/.zprofile"' 'brew shellenv'
 }
 
 # --- main --------------------------------------------------------------------
