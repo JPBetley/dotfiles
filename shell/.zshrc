@@ -1,16 +1,86 @@
-# Loads zsh default configuration
-source ~/.dotfiles/shell/.zshrc_base
+# Shared zsh config, pulled in by the Managed line in the ~/.zshrc Stub.
+# Machine-local setup (Herd, etc.) lives in the Stub itself.
 
-# All local machine customization goes below
+# Path to your oh-my-zsh configuration.
+ZSH=$HOME/.oh-my-zsh
 
-# Herd injected PHP 8.2 configuration.
-export HERD_PHP_82_INI_SCAN_DIR="$HOME/Library/Application Support/Herd/config/php/82/"
+# Set name of the theme to load.
+# Look in ~/.oh-my-zsh/themes/
+# Optionally, if you set this to "random", it'll load a random theme each
+# time that oh-my-zsh is loaded.
+ZSH_THEME="agnoster"
 
-# Herd injected PHP binary.
-export PATH="$HOME/Library/Application Support/Herd/bin/":$PATH
+# Hide username in prompt
+DEFAULT_USER=`whoami`
 
-# Herd injected PHP 7.4 configuration.
-export HERD_PHP_74_INI_SCAN_DIR="$HOME/Library/Application Support/Herd/config/php/74/"
+# Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
+# Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
+# Example format: plugins=(rails git textmate ruby lighthouse)
+# plugins=(git laravel4 laravel5 composer macos vagrant)
+# plugins=(git laravel5 composer macos)
 
-# Herd injected PHP 8.3 configuration.
-export HERD_PHP_83_INI_SCAN_DIR="$HOME/Library/Application Support/Herd/config/php/83/"
+[ -r "$ZSH/oh-my-zsh.sh" ] && source "$ZSH/oh-my-zsh.sh"
+
+# export PATH=Users/$DEFAULT_USER/.rvm/gems/ruby-2.1.2/bin:$PATH
+#set numeric keys
+# 0 . Enter
+# bindkey -s "^[Op" "0"
+# bindkey -s "^[Ol" "."
+# bindkey -s "^[OM" "^M"
+# # 1 2 3
+# bindkey -s "^[Oq" "1"
+# bindkey -s "^[Or" "2"
+# bindkey -s "^[Os" "3"
+# # 4 5 6
+# bindkey -s "^[Ot" "4"
+# bindkey -s "^[Ou" "5"
+# bindkey -s "^[Ov" "6"
+# # 7 8 9
+# bindkey -s "^[Ow" "7"
+# bindkey -s "^[Ox" "8"
+# bindkey -s "^[Oy" "9"
+# # + -  * /
+# bindkey -s "^[Ok" "+"
+# bindkey -s "^[Om" "-"
+# bindkey -s "^[Oj" "*"
+# bindkey -s "^[Oo" "/"
+
+# Load the shell dotfiles, and then some:
+# * ~/.dotfiles-custom can be used for other settings you don’t want to commit.
+for file in "$HOME"/.dotfiles/shell/.{exports,aliases,functions}; do
+	[ -r "$file" ] && [ -f "$file" ] && source "$file"
+done
+
+for file in "$HOME"/.dotfiles-custom/shell/.{exports,aliases,functions,zshrc}; do
+	[ -r "$file" ] && [ -f "$file" ] && source "$file"
+done
+unset file
+
+# Sudoless npm https://github.com/sindresorhus/guides/blob/master/npm-global-without-sudo.md
+# NPM_PACKAGES="${HOME}/.npm-packages"
+# export PATH="$PATH:$NPM_PACKAGES/bin"
+# # Preserve MANPATH if you already defined it somewhere in your config.
+# # Otherwise, fall back to `manpath` so we can inherit from `/etc/manpath`.
+# export MANPATH="${MANPATH-$(manpath)}:$NPM_PACKAGES/share/man"
+
+export PATH=$HOME/.dotfiles/bin:$PATH
+# [[ -e ~/.phpbrew/bashrc ]] && source ~/.phpbrew/bashrc
+
+# Setup xdebug
+export XDEBUG_CONFIG="idekey=VSCODE"
+
+# Extra paths
+export PATH="$HOME/.composer/vendor/bin:$PATH"
+export PATH=/usr/local/bin:$PATH
+export PATH=.:$PATH
+
+# pnpm
+export PNPM_HOME="$HOME/Library/pnpm"
+export PATH="$PNPM_HOME:$PATH"
+
+# bun completions
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

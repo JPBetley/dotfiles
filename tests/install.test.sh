@@ -89,7 +89,6 @@ test_refuses_to_run_outside_home_dotfiles() {
 	OUT="$(HOME="$SANDBOX" "$elsewhere/install" link 2>&1)"
 	STATUS=$?
 	assert_status 1
-	# shellcheck disable=SC2088 # literal text in the error message
 	assert_output_contains "~/.dotfiles"
 	assert_missing .vimrc
 	rm -rf "$elsewhere"
@@ -259,6 +258,23 @@ test_symlinked_stub_is_backed_up_not_written_through() {
 	[ "$(cat "$target")" = "repo-owned zshrc" ] || fail "Link wrote through the symlink"
 	[ -L "$(echo "$SANDBOX"/.dotfiles-backup/*/.zshrc)" ] || fail "expected the old symlink in a Backup"
 	rm -f "$target"
+}
+
+test_install_notes_missing_custom_folder_at_the_end() {
+	new_sandbox
+	run_install --dry-run
+	assert_status 0
+	assert_output_contains "~/.dotfiles-custom"
+	[ "$(printf '%s\n' "$OUT" | tail -1 | grep -c dotfiles-custom)" -eq 1 ] || fail "expected the note on the last line"
+	assert_missing .dotfiles-custom
+}
+
+test_install_is_quiet_about_existing_custom_folder() {
+	new_sandbox
+	mkdir "$SANDBOX/.dotfiles-custom"
+	run_install
+	assert_status 0
+	assert_output_not_contains "dotfiles-custom"
 }
 
 # --- runner ------------------------------------------------------------------

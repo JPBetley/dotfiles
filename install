@@ -52,7 +52,6 @@ BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 changes=0
 
 # Show a $HOME path as ~/...
-# shellcheck disable=SC2088 # a literal ~ for display
 pretty() {
 	case "$1" in
 		"$HOME"/*) echo "~/${1#"$HOME"/}" ;;
@@ -163,3 +162,5 @@ for step in $steps; do
 	"step_$step"
 done
 [ "$changes" -gt 0 ] || echo "Nothing to do."
+[ -d "$HOME/.dotfiles-custom" ] ||
+	echo "Note: no ~/.dotfiles-custom; create it for personal config you keep out of git (see README)."
