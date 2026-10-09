@@ -11,8 +11,10 @@ Usage: ./install [step...] [--dry-run]
 
 Steps:
   link       Wire repo files into $HOME (conflicts are moved to a Backup)
+  defaults   Apply macOS defaults (opt-in only: needs sudo, wipes the Dock,
+             sets the timezone, changes hibernation; none of it can be undone)
 
-With no step, every default step runs: link.
+With no step, every default step runs: link. defaults never runs unless named.
 
 Options:
   --dry-run  Print what would happen and change nothing
@@ -21,7 +23,7 @@ USAGE
 }
 
 DEFAULT_STEPS="link"
-ALL_STEPS="link"
+ALL_STEPS="link defaults"
 
 DRY_RUN=0
 steps=""
@@ -179,6 +181,12 @@ link_stubs() {
 	stub .zprofile 'source "$HOME/.dotfiles/shell/.zprofile"' 'brew shellenv'
 	adopt_gitconfig
 	stub .gitconfig '[include] path = ~/.dotfiles/git/config'
+}
+
+# --- Defaults ----------------------------------------------------------------
+
+step_defaults() {
+	act "defaults  macos/set-defaults.sh" "$DOTFILES/macos/set-defaults.sh"
 }
 
 # --- main --------------------------------------------------------------------

@@ -18,6 +18,22 @@ new_sandbox() {
 	ln -s "$REPO" "$SANDBOX/.dotfiles"
 }
 
+# Like new_sandbox, but ~/.dotfiles is a directory of links to the repo with
+# macos/set-defaults.sh replaced by a fake that only records that it ran (the
+# real one needs sudo and can't be undone).
+new_sandbox_with_fake_defaults() {
+	SANDBOX="$(mktemp -d)"
+	SANDBOX="$(cd "$SANDBOX" && pwd -P)"
+	mkdir -p "$SANDBOX/.dotfiles/macos"
+	local entry
+	for entry in "$REPO"/* "$REPO"/.[!.]*; do
+		case "$(basename "$entry")" in .git | macos) continue ;; esac
+		ln -s "$entry" "$SANDBOX/.dotfiles/$(basename "$entry")"
+	done
+	printf '#!/bin/sh\ntouch "$HOME/defaults-ran"\n' > "$SANDBOX/.dotfiles/macos/set-defaults.sh"
+	chmod +x "$SANDBOX/.dotfiles/macos/set-defaults.sh"
+}
+
 # Run install inside the sandbox. Sets $OUT (stdout+stderr) and $STATUS.
 run_install() {
 	OUT="$(cd "$SANDBOX" && HOME="$SANDBOX" "$SANDBOX/.dotfiles/install" "$@" 2>&1)"
@@ -347,6 +363,30 @@ test_global_ignore_honours_both_former_lists() {
 		sandbox_git -C work check-ignore -q "$path" || fail "expected $path to be ignored"
 	done
 	sandbox_git -C work check-ignore -q src/app.php && fail "src/app.php should not be ignored"
+}
+
+test_plain_install_never_runs_defaults() {
+	new_sandbox_with_fake_defaults
+	run_install
+	assert_status 0
+	assert_missing defaults-ran
+	assert_output_not_contains "defaults"
+}
+
+test_defaults_step_runs_the_defaults_script_only() {
+	new_sandbox_with_fake_defaults
+	run_install defaults
+	assert_status 0
+	[ -e "$SANDBOX/defaults-ran" ] || fail "expected the defaults script to run"
+	assert_missing .vimrc
+}
+
+test_defaults_dry_run_changes_nothing() {
+	new_sandbox_with_fake_defaults
+	run_install defaults --dry-run
+	assert_status 0
+	assert_missing defaults-ran
+	assert_output_contains "defaults  macos/set-defaults.sh"
 }
 
 # --- runner ------------------------------------------------------------------
