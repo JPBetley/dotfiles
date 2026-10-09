@@ -1,0 +1,118 @@
+#!/bin/bash
+#
+# Install: bring this machine in line with the repo. Safe to run any number of
+# times. See CONTEXT.md for vocabulary and README.md for usage.
+
+set -euo pipefail
+
+usage() {
+	cat <<'USAGE'
+Usage: ./install [step...] [--dry-run]
+
+Steps:
+  link       Wire repo files into $HOME (conflicts are moved to a Backup)
+
+With no step, every default step runs: link.
+
+Options:
+  --dry-run  Print what would happen and change nothing
+  -h, --help Show this help
+USAGE
+}
+
+DEFAULT_STEPS="link"
+ALL_STEPS="link"
+
+DRY_RUN=0
+steps=""
+for arg in "$@"; do
+	case "$arg" in
+		--dry-run) DRY_RUN=1 ;;
+		-h | --help) usage; exit 0 ;;
+		*)
+			case " $ALL_STEPS " in
+				*" $arg "*) steps="$steps $arg" ;;
+				*) echo "install: unknown step '$arg'" >&2; usage >&2; exit 2 ;;
+			esac
+			;;
+	esac
+done
+steps="${steps:-$DEFAULT_STEPS}"
+
+DOTFILES="$HOME/.dotfiles"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+if [ ! -d "$DOTFILES" ] || [ "$(cd "$DOTFILES" && pwd -P)" != "$here" ]; then
+	echo "install: this repo must live at ~/.dotfiles (it is at $here)." >&2
+	echo "Clone it there, or symlink ~/.dotfiles to it, then run ~/.dotfiles/install." >&2
+	exit 1
+fi
+
+BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
+changes=0
+
+# Show a $HOME path as ~/...
+# shellcheck disable=SC2088 # a literal ~ for display
+pretty() {
+	case "$1" in
+		"$HOME"/*) echo "~/${1#"$HOME"/}" ;;
+		*) echo "$1" ;;
+	esac
+}
+
+# Report a planned change, and make it unless this is a dry run.
+# Usage: act "<message>" command [args...]
+act() {
+	local message="$1"
+	shift
+	changes=$((changes + 1))
+	echo "$message"
+	[ "$DRY_RUN" -eq 1 ] || "$@"
+}
+
+# --- Link --------------------------------------------------------------------
+
+# Link manifest: one "repo path -> $HOME path" pair per line.
+LINKS="
+shell/.vimrc      .vimrc
+shell/.vim        .vim
+shell/.tmux.conf  .tmux.conf
+"
+
+move() {
+	mkdir -p "$(dirname "$2")"
+	mv "$1" "$2"
+}
+
+# Move a conflicting $HOME path into this run's Backup.
+backup() {
+	local dest="$1" saved="$BACKUP_DIR/${1#"$HOME"/}"
+	act "backup  $(pretty "$dest") -> $(pretty "$saved")" move "$dest" "$saved"
+}
+
+link_one() {
+	local src="$DOTFILES/$1" dest="$HOME/$2"
+	if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+		return
+	fi
+	if [ -e "$dest" ] || [ -L "$dest" ]; then
+		backup "$dest"
+	fi
+	act "link    $(pretty "$dest") -> $(pretty "$src")" ln -s "$src" "$dest"
+}
+
+step_link() {
+	local src dest
+	while read -r src dest; do
+		[ -n "$src" ] || continue
+		link_one "$src" "$dest"
+	done <<< "$LINKS"
+}
+
+# --- main --------------------------------------------------------------------
+
+[ "$DRY_RUN" -eq 0 ] || echo "Dry run: nothing will be changed."
+for step in $steps; do
+	"step_$step"
+done
+[ "$changes" -gt 0 ] || echo "Nothing to do."
