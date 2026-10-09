@@ -1,0 +1,75 @@
+# Global gitignore (core.excludesfile in git/config).
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trash/
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editors and IDEs
+.idea
+.vscode
+.metadata/
+.project/
+.settings/
+.classpath
+*.iml
+*.ipr
+*.sublime-project
+.phpstorm.meta.php
+.*.sw?
+*.swo
+*.swp
+*~
+
+# PHP tooling
+.php_cs.cache
+.phpstan.cache/
+.phpunit.cache/
+.phpunit.result.cache
+.phpunit-watcher-cache.php
+.rocketeer/
+
+# Node and Yarn
+node_modules
+npm-debug.log
+yarn-error.log
+.pnp.*
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Build output, archives and binaries
+.sass-cache/
+*.css.map
+*.sass.map
+*.scss.map
+*.7z
+*.bak
+*.class
+*.com
+*.dll
+*.dmg
+*.exe
+*.gz
+*.iso
+*.jar
+*.log
+*.o
+*.pyc
+*.pyo
+*.rar
+*.so
+*.tar
+*.zip
+
+# Vagrant
+.vagrant/
+
+# Claude Code
+**/.claude/settings.local.json

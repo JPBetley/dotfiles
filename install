@@ -100,12 +100,36 @@ link_one() {
 	act "link    $(pretty "$dest") -> $(pretty "$src")" ln -s "$src" "$dest"
 }
 
+# Retired $HOME paths from older setups: moved to a Backup if still present.
+RETIRED="
+.global-gitignore
+.gitignore
+"
+
+# One-time adoption of a pre-Stub ~/.gitconfig: set the whole file aside and
+# keep only its machine-local [user] section, so nothing shadows the repo config.
+adopt_gitconfig() {
+	local dest="$HOME/.gitconfig" user
+	[ -f "$dest" ] && [ ! -L "$dest" ] || return 0
+	! grep -qF "$MARKER" "$dest" || return 0
+	user="$(awk '/^[ \t]*\[/ { keep = ($0 ~ /^[ \t]*\[user\]/) } keep' "$dest")"
+	backup "$dest"
+	if [ "$DRY_RUN" -eq 0 ] && [ -n "$user" ]; then
+		printf '%s\n' "$user" > "$dest"
+	fi
+}
+
 step_link() {
 	local src dest
 	while read -r src dest; do
 		[ -n "$src" ] || continue
 		link_one "$src" "$dest"
 	done <<< "$LINKS"
+	for dest in $RETIRED; do
+		if [ -e "$HOME/$dest" ] || [ -L "$HOME/$dest" ]; then
+			backup "$HOME/$dest"
+		fi
+	done
 	link_stubs
 }
 
@@ -153,6 +177,8 @@ stub() {
 link_stubs() {
 	stub .zshrc 'source "$HOME/.dotfiles/shell/.zshrc"'
 	stub .zprofile 'source "$HOME/.dotfiles/shell/.zprofile"' 'brew shellenv'
+	adopt_gitconfig
+	stub .gitconfig '[include] path = ~/.dotfiles/git/config'
 }
 
 # --- main --------------------------------------------------------------------

@@ -1,0 +1,43 @@
+# Shared git config, pulled in by the Managed [include] line in the
+# ~/.gitconfig Stub. [user] is machine-local and lives in the Stub.
+
+[core]
+	excludesfile = ~/.dotfiles/git/ignore
+	autocrlf = input
+	compression = 9
+	fileMode = true
+	symlinks = true
+	whitespace = trailing-space
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
+[push]
+	autoSetupRemote = true
+	default = current
+[fetch]
+	prune = true
+[rebase]
+	autoStash = true
+[rerere]
+	enabled = true
+	autoUpdate = true
+[commit]
+	verbose = true
+[blame]
+	ignoreRevsFile = .git-blame-ignore-revs
+[branch]
+	sort = -committerdate
+[color]
+	ui = true
+[column]
+	ui = auto
+[format]
+	pretty = oneline
+[help]
+	autocorrect = prompt
+[maintenance]
+	auto = true
+	strategy = incremental
+[tag]
+	sort = -version:refname

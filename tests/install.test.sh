@@ -78,6 +78,13 @@ assert_file() {
 ZSHRC_LINE='source "$HOME/.dotfiles/shell/.zshrc" # dotfiles:link'
 ZPROFILE_LINE='source "$HOME/.dotfiles/shell/.zprofile" # dotfiles:link'
 
+GITCONFIG_LINE='[include] path = ~/.dotfiles/git/config # dotfiles:link'
+
+# git as seen by the sandbox: its ~/.gitconfig, no system config.
+sandbox_git() {
+	(cd "$SANDBOX" && HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" GIT_CONFIG_NOSYSTEM=1 git "$@")
+}
+
 # --- tests -------------------------------------------------------------------
 
 test_refuses_to_run_outside_home_dotfiles() {
@@ -225,13 +232,14 @@ seed_legacy_stubs() {
 test_second_link_run_on_migrated_stubs_changes_nothing() {
 	new_sandbox
 	seed_legacy_stubs
+	seed_legacy_git
 	run_install link
 	local before
-	before="$(snapshot; cat "$SANDBOX/.zshrc" "$SANDBOX/.zprofile")"
+	before="$(snapshot; cat "$SANDBOX/.zshrc" "$SANDBOX/.zprofile" "$SANDBOX/.gitconfig")"
 	run_install link
 	assert_status 0
 	assert_output_contains "Nothing to do"
-	[ "$(snapshot; cat "$SANDBOX/.zshrc" "$SANDBOX/.zprofile")" = "$before" ] || fail "second run changed the sandbox"
+	[ "$(snapshot; cat "$SANDBOX/.zshrc" "$SANDBOX/.zprofile" "$SANDBOX/.gitconfig")" = "$before" ] || fail "second run changed the sandbox"
 }
 
 test_dry_run_shows_stub_edits_without_making_them() {
@@ -275,6 +283,70 @@ test_install_is_quiet_about_existing_custom_folder() {
 	run_install
 	assert_status 0
 	assert_output_not_contains "dotfiles-custom"
+}
+
+test_link_creates_gitconfig_stub_that_includes_repo_config() {
+	new_sandbox
+	run_install link
+	assert_status 0
+	assert_file .gitconfig "$GITCONFIG_LINE"
+	[ "$(sandbox_git config --get pull.rebase)" = "true" ] || fail "repo git config not included"
+	[ "$(sandbox_git config --get core.excludesfile)" = "~/.dotfiles/git/ignore" ] || fail "excludesfile should point at the repo ignore"
+	sandbox_git config --get-regexp '^user\.' && fail "repo git config must not set [user]"
+}
+
+LEGACY_GITCONFIG='[core]
+	excludesfile = ~/.gitignore
+	autocrlf = input
+[user]
+	name = Some One
+	email = someone@example.com
+[pull]
+	rebase = true'
+
+seed_legacy_git() {
+	printf '%s\n' "$LEGACY_GITCONFIG" > "$SANDBOX/.gitconfig"
+	printf '%s\n' '.idea/' 'node_modules/' > "$SANDBOX/.gitignore"
+	ln -s "$SANDBOX/.dotfiles/shell/.global-gitignore" "$SANDBOX/.global-gitignore"
+}
+
+test_link_adopts_legacy_gitconfig_keeping_only_user() {
+	new_sandbox
+	seed_legacy_git
+	run_install link
+	assert_status 0
+	assert_file .gitconfig "$GITCONFIG_LINE"$'\n''[user]
+	name = Some One
+	email = someone@example.com'
+	local backups
+	backups=("$SANDBOX"/.dotfiles-backup/*/.gitconfig)
+	[ "$(cat "${backups[0]}" 2>/dev/null)" = "$LEGACY_GITCONFIG" ] || fail "expected the old ~/.gitconfig in a Backup"
+	[ "$(sandbox_git config --get core.excludesfile)" = "~/.dotfiles/git/ignore" ] || fail "old excludesfile still wins"
+}
+
+test_link_retires_old_global_ignore_files() {
+	new_sandbox
+	seed_legacy_git
+	run_install link
+	assert_status 0
+	assert_missing .global-gitignore
+	assert_missing .gitignore
+	local backups
+	backups=("$SANDBOX"/.dotfiles-backup/*/.gitignore)
+	[ -f "${backups[0]}" ] || fail "expected the old ~/.gitignore in a Backup"
+}
+
+test_global_ignore_honours_both_former_lists() {
+	new_sandbox
+	run_install link
+	sandbox_git init -q work
+	local path
+	# from the old ~/.gitignore, then from the old repo global-gitignore
+	for path in .idea/x .phpunit.cache/x foo.swp .claude/settings.local.json \
+		.foo.swo app.sublime-project .phpunit-watcher-cache.php sub/node_modules; do
+		sandbox_git -C work check-ignore -q "$path" || fail "expected $path to be ignored"
+	done
+	sandbox_git -C work check-ignore -q src/app.php && fail "src/app.php should not be ignored"
 }
 
 # --- runner ------------------------------------------------------------------
