@@ -197,4 +197,4 @@ for step in $steps; do
 done
 [ "$changes" -gt 0 ] || echo "Nothing to do."
 [ -d "$HOME/.dotfiles-custom" ] ||
-	echo "Note: no ~/.dotfiles-custom; create it for personal config you keep out of git (see README)."
+	echo "Note: no ~/.dotfiles-custom; create it (e.g. ~/.dotfiles-custom/shell/.aliases) for personal config you keep out of git."
