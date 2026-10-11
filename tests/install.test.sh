@@ -389,6 +389,34 @@ test_defaults_dry_run_changes_nothing() {
 	assert_output_contains "defaults  macos/set-defaults.sh"
 }
 
+test_link_adoption_keeps_machine_only_git_settings() {
+	new_sandbox
+	printf '%s\n' "$LEGACY_GITCONFIG" '[credential]' '	helper = osxkeychain' \
+		'[url "git@github.com:"]' '	insteadOf = https://github.com/' > "$SANDBOX/.gitconfig"
+	run_install link
+	assert_status 0
+	[ "$(sandbox_git config --get credential.helper)" = "osxkeychain" ] || fail "lost [credential]"
+	[ "$(sandbox_git config --get url.git@github.com:.insteadof)" = "https://github.com/" ] || fail "lost [url]"
+	[ "$(sandbox_git config --get user.name)" = "Some One" ] || fail "lost [user]"
+	[ "$(sandbox_git config --get core.excludesfile)" = "~/.dotfiles/git/ignore" ] || fail "old excludesfile still wins"
+	grep -q 'rebase\|autocrlf' "$SANDBOX/.gitconfig" && fail "settings the repo owns should leave the Stub"
+	[ "$(head -1 "$SANDBOX/.gitconfig")" = "$GITCONFIG_LINE" ] || fail "Managed line should come first"
+}
+
+test_dry_run_shows_line_level_stub_changes() {
+	new_sandbox
+	seed_legacy_stubs
+	seed_legacy_git
+	run_install link --dry-run
+	assert_status 0
+	assert_output_contains '      - source $HOME/.dotfiles/shell/.zshrc'
+	assert_output_contains "      + $ZSHRC_LINE"
+	assert_output_contains '      - eval "$(/opt/homebrew/bin/brew shellenv)"'
+	assert_output_contains "      + $GITCONFIG_LINE"
+	assert_output_contains '      - 	excludesfile = ~/.gitignore'
+	assert_output_not_contains '      - 	name = Some One'
+}
+
 # --- runner ------------------------------------------------------------------
 
 for t in $(declare -F | awk '{print $3}' | grep '^test_' | grep -- "${1:-}"); do
