@@ -141,6 +141,7 @@ LINKS="
 shell/.vimrc      .vimrc
 shell/.vim        .vim
 shell/.tmux.conf  .tmux.conf
+shell/starship.toml  .config/starship.toml
 "
 
 move() {
@@ -162,7 +163,12 @@ link_one() {
 	if [ -e "$dest" ] || [ -L "$dest" ]; then
 		backup "$dest"
 	fi
-	act "link    $(pretty "$dest") -> $(pretty "$src")" ln -s "$src" "$dest"
+	act "link    $(pretty "$dest") -> $(pretty "$src")" symlink "$src" "$dest"
+}
+
+symlink() {
+	mkdir -p "$(dirname "$2")"
+	ln -s "$1" "$2"
 }
 
 # Retired $HOME paths from older setups: moved to a Backup if still present.

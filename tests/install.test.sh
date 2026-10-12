@@ -173,6 +173,47 @@ test_link_links_vim_and_tmux_config() {
 	assert_link .tmux.conf shell/.tmux.conf
 }
 
+test_link_links_starship_config_creating_dot_config() {
+	new_sandbox
+	run_install link
+	assert_status 0
+	assert_link .config/starship.toml shell/starship.toml
+}
+
+# A fake starship whose prompt is a fixed string.
+FAKE_STARSHIP='#!/bin/bash
+[ "$1 $2" = "init zsh" ] && echo "PROMPT=starship-prompt"'
+
+test_new_shell_starts_with_starship_and_shell_options() {
+	new_sandbox
+	add_fake starship "$FAKE_STARSHIP"
+	run_install link
+	OUT="$(cd "$SANDBOX" && HOME="$SANDBOX" PATH="$SANDBOX/fakebin:/usr/bin:/bin" ZDOTDIR="$SANDBOX" \
+		zsh -i -c 'print -r -- "prompt=$PROMPT"
+			[[ -o sharehistory ]] && echo share_history
+			[[ -o autocd ]] && echo auto_cd
+			bindkey "^[[A"
+			(( $+functions[compdef] )) && echo compinit
+			alias "..."' 2>&1)"
+	assert_output_contains "prompt=starship-prompt"
+	assert_output_contains "share_history"
+	assert_output_contains "auto_cd"
+	assert_output_contains "up-line-or-beginning-search"
+	assert_output_contains "compinit"
+	assert_output_contains "...=../.."
+	[ "$(printf '%s\n' "$OUT" | wc -l)" -eq 6 ] || fail "expected no other shell output"
+}
+
+test_repo_does_not_reference_the_old_prompt_setup() {
+	local hits
+	hits="$(cd "$REPO" && git grep -Iil -e 'oh-my-''zsh' -e 'agno''ster' -e 'DEFAULT_''USER')"
+	[ -z "$hits" ] || fail "still referenced in: $hits"
+}
+
+test_t_is_executable() {
+	[ -x "$REPO/bin/t" ] || fail "bin/t must be executable to be on the PATH"
+}
+
 test_second_link_run_changes_nothing() {
 	new_sandbox
 	run_install link

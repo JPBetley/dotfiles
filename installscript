@@ -3,12 +3,6 @@
 # Hide "last login" line when starting a new terminal session
 touch $HOME/.hushlogin
 
-# Install zsh
-echo 'Install oh-my-zsh'
-echo '-----------------'
-rm -rf $HOME/.oh-my-zsh
-curl -L https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh | sh
-
 # Setup zshrc
 rm $HOME/.zshrc
 echo 'source $HOME/.dotfiles/shell/.zshrc' >> $HOME/.zshrc
@@ -21,12 +15,6 @@ ln -s $HOME/.dotfiles/shell/.vim $HOME/.vim
 
 # Symlink the Mackup config
 # ln -s $HOME/.dotfiles/macos/.mackup-work.cfg $HOME/.mackup.cfg
-
-# Fix missing font characters (see https://github.com/robbyrussell/oh-my-zsh/issues/1906)
-cd ~/.oh-my-zsh/themes/
-git checkout d6a36b1 agnoster.zsh-theme
-
-cd ~/.dotfiles
 
 # Homebrew and its packages: see `./install provision`.
 

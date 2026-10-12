@@ -1,0 +1,72 @@
+# Interactive zsh behaviour: completion, history, key bindings, colours and
+# directory navigation. Sourced by shell/.zshrc.
+
+# --- Completion ---------------------------------------------------------------
+
+[ -n "${HOMEBREW_PREFIX:-}" ] && [ -d "$HOMEBREW_PREFIX/share/zsh/site-functions" ] &&
+	fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
+autoload -Uz compinit && compinit -i -d "${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+zmodload zsh/complist
+setopt auto_menu complete_in_word always_to_end
+unsetopt menu_complete flow_control
+# Case-insensitive, then partial-word and substring matching
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' menu select
+zstyle ':completion:*' list-colors ''
+zstyle ':completion:*' use-cache yes
+zstyle ':completion:*' cache-path "${XDG_CACHE_HOME:-$HOME/.cache}/zcompcache"
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+
+# --- History ------------------------------------------------------------------
+
+HISTFILE="${HISTFILE:-$HOME/.zsh_history}"
+HISTSIZE=50000
+SAVEHIST=10000
+setopt extended_history hist_expire_dups_first hist_ignore_dups hist_ignore_space
+setopt hist_verify share_history
+
+# --- Key bindings -------------------------------------------------------------
+
+bindkey -e
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search edit-command-line
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+zle -N edit-command-line
+# Up/Down search history for what's already typed
+bindkey '^[[A' up-line-or-beginning-search
+bindkey '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search
+bindkey '^[OB' down-line-or-beginning-search
+bindkey '^[[H' beginning-of-line
+bindkey '^[OH' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[OF' end-of-line
+bindkey '^[[3~' delete-char
+bindkey '^[[Z' reverse-menu-complete
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+bindkey '^r' history-incremental-search-backward
+bindkey ' ' magic-space
+bindkey '^x^e' edit-command-line
+
+# --- Colours ------------------------------------------------------------------
+
+export CLICOLOR=1
+export LSCOLORS="Gxfxcxdxbxegedabagacad"
+export LESS="${LESS:--R}"
+
+# --- Directories --------------------------------------------------------------
+
+setopt auto_cd auto_pushd pushd_ignore_dups pushd_minus
+alias -g ...='../..'
+alias -g ....='../../..'
+alias -g .....='../../../..'
+alias -- -='cd -'
+alias d='dirs -v | head -10'
+
+# --- Misc ---------------------------------------------------------------------
+
+setopt interactive_comments long_list_jobs multios
+autoload -Uz bracketed-paste-magic url-quote-magic
+zle -N bracketed-paste bracketed-paste-magic
+zle -N self-insert url-quote-magic

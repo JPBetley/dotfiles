@@ -1,0 +1,17 @@
+# Starship prompt. Link puts this at ~/.config/starship.toml.
+# Symbols are plain Unicode, so no patched (Nerd) font is needed.
+"$schema" = 'https://starship.rs/config-schema.json'
+
+[directory]
+truncation_length = 4
+truncate_to_repo = true
+
+[git_branch]
+symbol = ""
+format = "on [$branch(:$remote_branch)]($style) "
+
+[nodejs]
+symbol = "[⬢](bold green) "
+
+[battery]
+disabled = true
