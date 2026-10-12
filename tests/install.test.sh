@@ -16,6 +16,7 @@ new_sandbox() {
 	SANDBOX="$(mktemp -d)"
 	SANDBOX="$(cd "$SANDBOX" && pwd -P)"
 	ln -s "$REPO" "$SANDBOX/.dotfiles"
+	install_fakes
 }
 
 # Like new_sandbox, but ~/.dotfiles is a directory of links to the repo with
@@ -32,18 +33,64 @@ new_sandbox_with_fake_defaults() {
 	done
 	printf '#!/bin/sh\ntouch "$HOME/defaults-ran"\n' > "$SANDBOX/.dotfiles/macos/set-defaults.sh"
 	chmod +x "$SANDBOX/.dotfiles/macos/set-defaults.sh"
+	install_fakes
+}
+
+# Fakes for the tools Provision drives, on a PATH without the real Homebrew.
+# Each logs its arguments to ~/fakebin/<tool>.log; files in the sandbox steer them.
+FAKE_BREW='#!/bin/bash
+echo "$*" >> "$HOME/fakebin/brew.log"
+env | grep "^HOMEBREW_BUNDLE_.*CLEANUP" >> "$HOME/fakebin/brew.log"
+case "$1 $2" in
+	"bundle check")
+		[ -e "$HOME/brew-satisfied" ] && exit 0
+		{
+			echo "brew bundle can'"'"'t satisfy your Brewfile'"'"'s dependencies."
+			echo "→ Cask firefox needs to be installed."
+			echo "→ Formula fzf needs to be installed."
+		} >&2
+		exit 1 ;;
+	"bundle cleanup")
+		[ -e "$HOME/brew-extras" ] || exit 0
+		printf "%s\n" "Would uninstall casks:" arc "Would uninstall formulae:" ack \
+			"Would \`brew cleanup\`:" "Would remove: $HOME/Library/Caches/Homebrew/old.tar.gz (1MB)" \
+			"Run \`brew bundle cleanup --force\` to make these changes."
+		exit 1 ;;
+esac'
+FAKE_XCODE_SELECT='#!/bin/bash
+echo "$*" >> "$HOME/fakebin/xcode-select.log"
+[ "$1" != -p ] || [ ! -e "$HOME/no-clt" ]'
+# The Homebrew installer: curl hands bash a script that installs a fake brew
+# at the off-PATH location Provision checks.
+FAKE_CURL='#!/bin/bash
+echo "$*" >> "$HOME/fakebin/curl.log"
+echo "mkdir -p \"\$HOME/homebrew/bin\" && cp \"\$HOME/fakebin/brew-to-install\" \"\$HOME/homebrew/bin/brew\""'
+
+add_fake() {
+	printf '%s\n' "$2" > "$SANDBOX/fakebin/$1"
+	chmod +x "$SANDBOX/fakebin/$1"
+}
+
+install_fakes() {
+	mkdir -p "$SANDBOX/fakebin"
+	add_fake brew "$FAKE_BREW"
+	add_fake xcode-select "$FAKE_XCODE_SELECT"
+	add_fake curl "$FAKE_CURL"
+	add_fake brew-to-install "$FAKE_BREW"
+	touch "$SANDBOX/brew-satisfied"
 }
 
 # Run install inside the sandbox. Sets $OUT (stdout+stderr) and $STATUS.
 run_install() {
-	OUT="$(cd "$SANDBOX" && HOME="$SANDBOX" "$SANDBOX/.dotfiles/install" "$@" 2>&1)"
+	OUT="$(cd "$SANDBOX" && HOME="$SANDBOX" PATH="$SANDBOX/fakebin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		DOTFILES_BREW_PATHS="$SANDBOX/homebrew/bin/brew" "$SANDBOX/.dotfiles/install" "$@" 2>&1)"
 	STATUS=$?
 }
 
 # Snapshot of everything in the sandbox (except the repo link's contents),
 # used to prove a run changed nothing.
 snapshot() {
-	(cd "$SANDBOX" && find . -path ./.dotfiles -prune -o -print0 | sort -z | xargs -0 ls -ld 2>/dev/null)
+	(cd "$SANDBOX" && find . \( -path ./.dotfiles -o -path ./fakebin \) -prune -o -print0 | sort -z | xargs -0 ls -ld 2>/dev/null)
 }
 
 fail() {
@@ -415,6 +462,155 @@ test_dry_run_shows_line_level_stub_changes() {
 	assert_output_contains "      + $GITCONFIG_LINE"
 	assert_output_contains '      - 	excludesfile = ~/.gitignore'
 	assert_output_not_contains '      - 	name = Some One'
+}
+
+# assert_logged <fake tool> <expected line in its log>
+assert_logged() {
+	grep -qxF -- "$2" "$SANDBOX/fakebin/$1.log" 2>/dev/null ||
+		fail "expected $1 to be run with '$2'. Log:"$'\n'"$(cat "$SANDBOX/fakebin/$1.log" 2>/dev/null)"
+}
+
+assert_not_logged() {
+	grep -qF -- "$2" "$SANDBOX/fakebin/$1.log" 2>/dev/null &&
+		fail "expected $1 not to be run with '$2'"
+}
+
+
+test_brewfile_includes_what_the_shell_config_needs() {
+	local pkg
+	for pkg in tmux fzf starship; do
+		grep -qx "brew \"$pkg\"" "$REPO/Brewfile" || fail "Brewfile is missing $pkg"
+	done
+}
+
+test_provision_runs_brew_bundle_on_the_repo_brewfile() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	run_install provision
+	assert_status 0
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/Brewfile"
+	assert_output_contains "brew    bundle ~/.dotfiles/Brewfile"
+	assert_output_contains "      + Cask firefox"
+	assert_output_contains "      + Formula fzf"
+	assert_output_not_contains "→"
+	assert_missing .vimrc
+}
+
+test_provision_skips_brew_bundle_when_brewfile_is_satisfied() {
+	new_sandbox
+	run_install provision
+	assert_status 0
+	assert_not_logged brew "bundle install"
+	assert_output_contains "Nothing to do"
+}
+
+test_provision_reports_unlisted_packages_and_uninstalls_nothing() {
+	new_sandbox
+	touch "$SANDBOX/brew-extras"
+	run_install provision
+	assert_status 0
+	assert_output_contains "Installed but not in the Brewfile"
+	assert_output_contains "  casks: arc"
+	assert_output_contains "  formulae: ack"$'\n'
+	assert_output_not_contains "Would"
+	assert_output_not_contains "--force"
+	assert_not_logged brew "--force"
+	assert_not_logged brew "uninstall"
+	assert_not_logged brew "--cleanup"
+}
+
+test_provision_ignores_cleanup_settings_from_the_environment() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	OUT="$(cd "$SANDBOX" && HOME="$SANDBOX" PATH="$SANDBOX/fakebin:/usr/bin:/bin:/usr/sbin:/sbin" \
+		DOTFILES_BREW_PATHS="$SANDBOX/homebrew/bin/brew" HOMEBREW_BUNDLE_INSTALL_CLEANUP=1 \
+		HOMEBREW_BUNDLE_FORCE_INSTALL_CLEANUP=1 "$SANDBOX/.dotfiles/install" provision 2>&1)"
+	STATUS=$?
+	assert_status 0
+	assert_not_logged brew "CLEANUP"
+}
+
+test_provision_does_not_reinstall_homebrew() {
+	new_sandbox
+	run_install provision
+	assert_status 0
+	assert_missing fakebin/curl.log
+	assert_output_not_contains "Homebrew"
+}
+
+test_provision_finds_homebrew_off_the_path() {
+	new_sandbox
+	mkdir -p "$SANDBOX/homebrew/bin"
+	mv "$SANDBOX/fakebin/brew" "$SANDBOX/homebrew/bin/brew"
+	rm "$SANDBOX/brew-satisfied"
+	run_install provision
+	assert_status 0
+	assert_missing fakebin/curl.log
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/Brewfile"
+}
+
+test_provision_installs_missing_homebrew_then_bundles() {
+	new_sandbox
+	rm "$SANDBOX/fakebin/brew" "$SANDBOX/brew-satisfied"
+	run_install provision
+	assert_status 0
+	assert_output_contains "install Homebrew"
+	[ -x "$SANDBOX/homebrew/bin/brew" ] || fail "expected the Homebrew installer to run"
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/Brewfile"
+}
+
+test_provision_installs_missing_command_line_tools() {
+	new_sandbox
+	touch "$SANDBOX/no-clt"
+	run_install provision
+	assert_status 1
+	assert_logged xcode-select "--install"
+	assert_output_contains "rerun ./install"
+	assert_not_logged brew "bundle install"
+}
+
+test_provision_leaves_installed_command_line_tools_alone() {
+	new_sandbox
+	run_install provision
+	assert_not_logged xcode-select "--install"
+}
+
+test_provision_dry_run_shows_plan_and_changes_nothing() {
+	new_sandbox
+	touch "$SANDBOX/no-clt"
+	rm "$SANDBOX/fakebin/brew" "$SANDBOX/brew-satisfied"
+	local before
+	before="$(snapshot)"
+	run_install provision --dry-run
+	assert_status 0
+	[ "$(snapshot)" = "$before" ] || fail "dry run changed the sandbox"
+	assert_missing fakebin/curl.log
+	assert_not_logged xcode-select "--install"
+	assert_output_contains "install Xcode Command Line Tools"
+	assert_output_contains "install Homebrew"
+	assert_output_contains "brew    bundle ~/.dotfiles/Brewfile"
+}
+
+test_provision_dry_run_lists_packages_it_would_install() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	run_install provision --dry-run
+	assert_status 0
+	assert_not_logged brew "bundle install"
+	assert_output_contains "      + Formula fzf"
+}
+
+test_plain_install_runs_provision_then_link() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	run_install
+	assert_status 0
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/Brewfile"
+	assert_link .vimrc shell/.vimrc
+	local bundle_at link_at
+	bundle_at="$(printf '%s\n' "$OUT" | grep -n 'brew    bundle' | head -1 | cut -d: -f1)"
+	link_at="$(printf '%s\n' "$OUT" | grep -n '^link ' | head -1 | cut -d: -f1)"
+	[ -n "$bundle_at" ] && [ "$bundle_at" -lt "$link_at" ] || fail "expected provision before link"
 }
 
 # --- runner ------------------------------------------------------------------
