@@ -46,6 +46,9 @@ echo "$*" >> "$HOME/fakebin/brew.log"
 env | grep "^HOMEBREW_BUNDLE_.*CLEANUP" >> "$HOME/fakebin/brew.log"
 for arg; do case "$arg" in --file=*) file="${arg#--file=}" ;; esac; done
 case "$1 $2" in
+	"bundle install")
+		[ -e "$HOME/base-bundle-fails" ] && [ "${file#*/profiles/}" = "$file" ] && exit 1
+		exit 0 ;;
 	"bundle check")
 		[ -e "$HOME/brew-satisfied" ] && exit 0
 		echo "brew bundle can'"'"'t satisfy your Brewfile'"'"'s dependencies." >&2
@@ -826,6 +829,18 @@ test_work_profile_lists_its_packages_and_trusts_its_taps() {
 	for pkg in tableplus tailscale-app spotify; do
 		grep -qxF "cask \"$pkg\"" "$REPO/Brewfile" || fail "base Brewfile is missing $pkg"
 	done
+}
+
+test_failed_bundle_still_runs_the_rest_then_exits_non_zero() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	touch "$SANDBOX/base-bundle-fails"
+	run_install --profile work
+	assert_status 1
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/profiles/work/Brewfile"
+	assert_link .vimrc shell/.vimrc
+	assert_output_contains "brew bundle failed for: ~/.dotfiles/Brewfile"
+	assert_output_not_contains "profiles/work/Brewfile (see above)"
 }
 
 # --- runner ------------------------------------------------------------------

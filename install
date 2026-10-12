@@ -68,6 +68,8 @@ fi
 
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 changes=0
+# Brewfiles whose `brew bundle` failed; Install carries on and exits non-zero.
+failed_brewfiles=""
 
 # Show a $HOME path as ~/...
 pretty() {
@@ -188,7 +190,8 @@ step_provision() {
 		if ! missing="$("$brew" bundle check --verbose --no-upgrade --file="$brewfile" 2>&1)"; then
 			act "brew    bundle $(pretty "$brewfile")
 $(sed -n 's/^→ \(.*\) needs to be installed.*/      + \1/p' <<< "$missing")" \
-				"$brew" bundle install --no-upgrade --file="$brewfile"
+				"$brew" bundle install --no-upgrade --file="$brewfile" ||
+				failed_brewfiles="$failed_brewfiles $(pretty "$brewfile")"
 		fi
 	done
 	report_unlisted "$brew"
@@ -358,3 +361,7 @@ done
 	echo "Note: no Profile, so only the base was applied; add one with ./install --profile <name> ($(list_profiles))."
 [ -d "$HOME/.dotfiles-custom" ] ||
 	echo "Note: no ~/.dotfiles-custom; create it (e.g. ~/.dotfiles-custom/shell/.aliases) for personal config you keep out of git."
+if [ -n "$failed_brewfiles" ]; then
+	echo "install: brew bundle failed for:$failed_brewfiles (see above); fix it, then rerun ./install." >&2
+	exit 1
+fi
