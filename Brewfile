@@ -1,5 +1,7 @@
-# Packages Provision installs with `brew bundle`. Provision never uninstalls:
-# anything installed but not listed here is only reported.
+# Packages Provision installs with `brew bundle` on every machine; a Profile's
+# Brewfile (profiles/<name>/Brewfile) adds to these. Provision never
+# uninstalls: anything installed but not listed here or in the Profile's
+# Brewfile is only reported.
 
 # --- Shell & terminal ---
 brew "tmux"
@@ -36,16 +38,16 @@ brew "mysql-client@8.0"
 
 # --- Apps ---
 cask "1password-cli"
-cask "docker-desktop"
 cask "firefox"
 cask "fork"
 cask "keka"
 cask "notion"
-cask "notion-calendar"
 cask "phpstorm"
 cask "ray"
 cask "raycast"
 cask "spotify"
 cask "suspicious-package"
+cask "tableplus"
+cask "tailscale-app"
 cask "visual-studio-code"
 cask "warp"

@@ -38,22 +38,32 @@ new_sandbox_with_fake_defaults() {
 
 # Fakes for the tools Provision drives, on a PATH without the real Homebrew.
 # Each logs its arguments to ~/fakebin/<tool>.log; files in the sandbox steer them.
+# A profile Brewfile is missing slack; the base one firefox and fzf. Cleanup
+# reports arc and ack when ~/brew-extras exists, and slack when ~/slack-installed
+# does and the Brewfile it was given doesn't list it.
 FAKE_BREW='#!/bin/bash
 echo "$*" >> "$HOME/fakebin/brew.log"
 env | grep "^HOMEBREW_BUNDLE_.*CLEANUP" >> "$HOME/fakebin/brew.log"
+for arg; do case "$arg" in --file=*) file="${arg#--file=}" ;; esac; done
 case "$1 $2" in
 	"bundle check")
 		[ -e "$HOME/brew-satisfied" ] && exit 0
-		{
-			echo "brew bundle can'"'"'t satisfy your Brewfile'"'"'s dependencies."
-			echo "→ Cask firefox needs to be installed."
-			echo "→ Formula fzf needs to be installed."
-		} >&2
+		echo "brew bundle can'"'"'t satisfy your Brewfile'"'"'s dependencies." >&2
+		case "$file" in
+			*/profiles/*) echo "→ Cask slack needs to be installed." >&2 ;;
+			*)
+				echo "→ Cask firefox needs to be installed." >&2
+				echo "→ Formula fzf needs to be installed." >&2 ;;
+		esac
 		exit 1 ;;
 	"bundle cleanup")
-		[ -e "$HOME/brew-extras" ] || exit 0
-		printf "%s\n" "Would uninstall casks:" arc "Would uninstall formulae:" ack \
-			"Would \`brew cleanup\`:" "Would remove: $HOME/Library/Caches/Homebrew/old.tar.gz (1MB)" \
+		casks="" formulae=""
+		[ -e "$HOME/brew-extras" ] && casks="arc" formulae="ack"
+		[ -e "$HOME/slack-installed" ] && ! grep -q "cask \"slack\"" "$file" && casks="$casks slack"
+		[ -n "$casks$formulae" ] || exit 0
+		printf "%s\n" "Would uninstall casks:" $casks
+		[ -z "$formulae" ] || printf "%s\n" "Would uninstall formulae:" $formulae
+		printf "%s\n" "Would \`brew cleanup\`:" "Would remove: $HOME/Library/Caches/Homebrew/old.tar.gz (1MB)" \
 			"Run \`brew bundle cleanup --force\` to make these changes."
 		exit 1 ;;
 esac'
@@ -652,6 +662,170 @@ test_plain_install_runs_provision_then_link() {
 	bundle_at="$(printf '%s\n' "$OUT" | grep -n 'brew    bundle' | head -1 | cut -d: -f1)"
 	link_at="$(printf '%s\n' "$OUT" | grep -n '^link ' | head -1 | cut -d: -f1)"
 	[ -n "$bundle_at" ] && [ "$bundle_at" -lt "$link_at" ] || fail "expected provision before link"
+}
+
+# --- Profiles ----------------------------------------------------------------
+
+test_profile_work_bundles_base_then_work_brewfile_and_saves_it() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	run_install provision --profile work
+	assert_status 0
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/Brewfile"
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/profiles/work/Brewfile"
+	assert_output_contains "brew    bundle ~/.dotfiles/profiles/work/Brewfile"$'\n'"      + Cask slack"
+	local base_at work_at
+	base_at="$(grep -n "file=$SANDBOX/.dotfiles/Brewfile" "$SANDBOX/fakebin/brew.log" | grep install | cut -d: -f1)"
+	work_at="$(grep -n "profiles/work/Brewfile" "$SANDBOX/fakebin/brew.log" | grep install | cut -d: -f1)"
+	[ "$base_at" -lt "$work_at" ] || fail "expected the base Brewfile before the profile's"
+	assert_file .dotfiles-profile work
+	assert_output_not_contains "no Profile"
+}
+
+test_plain_install_reuses_the_saved_profile() {
+	new_sandbox
+	echo work > "$SANDBOX/.dotfiles-profile"
+	rm "$SANDBOX/brew-satisfied"
+	run_install provision
+	assert_status 0
+	assert_logged brew "bundle install --no-upgrade --file=$SANDBOX/.dotfiles/profiles/work/Brewfile"
+	assert_output_not_contains "no Profile"
+}
+
+test_second_run_with_saved_profile_installs_nothing() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	run_install --profile work
+	touch "$SANDBOX/brew-satisfied"
+	rm "$SANDBOX/fakebin/brew.log"
+	run_install
+	assert_status 0
+	assert_output_contains "Nothing to do"
+	assert_not_logged brew "bundle install"
+	assert_file .dotfiles-profile work
+}
+
+test_switching_profile_reports_old_profile_packages_without_uninstalling() {
+	new_sandbox
+	echo work > "$SANDBOX/.dotfiles-profile"
+	touch "$SANDBOX/slack-installed"
+	run_install provision --profile personal
+	assert_status 0
+	assert_file .dotfiles-profile personal
+	assert_output_contains "profile personal"
+	assert_output_contains "Installed but not in the Brewfile or the personal Profile's"
+	assert_output_contains "  casks: slack"
+	assert_not_logged brew "uninstall"
+	assert_not_logged brew "--force"
+}
+
+test_unlisted_report_compares_against_base_plus_profile() {
+	new_sandbox
+	echo work > "$SANDBOX/.dotfiles-profile"
+	touch "$SANDBOX/slack-installed"
+	run_install provision
+	assert_status 0
+	assert_output_not_contains "Installed but not"
+	local file
+	file="$(grep '^bundle cleanup' "$SANDBOX/fakebin/brew.log" | sed 's/.*--file=//')"
+	[ ! -e "$file" ] || fail "left the combined Brewfile behind at $file"
+}
+
+test_profile_none_clears_the_saved_profile_and_notes_it() {
+	new_sandbox
+	echo work > "$SANDBOX/.dotfiles-profile"
+	run_install provision --profile none
+	assert_status 0
+	assert_missing .dotfiles-profile
+	assert_output_contains "profile none"
+	assert_output_contains "Note: no Profile"
+	assert_not_logged brew "profiles/"
+}
+
+test_no_profile_applies_base_only_and_prints_a_note() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	mkdir "$SANDBOX/.dotfiles-custom"
+	run_install provision
+	assert_status 0
+	assert_not_logged brew "profiles/"
+	assert_output_contains "Note: no Profile"
+	assert_output_contains "--profile <name> (personal, work)"
+}
+
+test_unknown_profile_errors_and_lists_profiles() {
+	new_sandbox
+	run_install --profile wrok
+	assert_status 2
+	assert_output_contains "unknown profile 'wrok'"
+	assert_output_contains "personal, work"
+	assert_missing .dotfiles-profile
+	assert_missing .vimrc
+	assert_missing fakebin/brew.log
+}
+
+test_profile_must_be_a_folder_name() {
+	new_sandbox
+	local name
+	for name in "" .. "work/.."; do
+		run_install --profile "$name"
+		assert_status 2
+	done
+	run_install --profile
+	assert_status 2
+	assert_missing .dotfiles-profile
+}
+
+test_saved_unknown_profile_errors() {
+	new_sandbox
+	echo gone > "$SANDBOX/.dotfiles-profile"
+	run_install provision
+	assert_status 2
+	assert_output_contains "unknown profile 'gone'"
+	assert_output_contains "--profile none"
+}
+
+test_dry_run_with_profile_shows_both_plans_and_saves_nothing() {
+	new_sandbox
+	rm "$SANDBOX/brew-satisfied"
+	local before
+	before="$(snapshot)"
+	run_install --dry-run --profile work
+	assert_status 0
+	[ "$(snapshot)" = "$before" ] || fail "dry run changed the sandbox"
+	assert_missing .dotfiles-profile
+	assert_output_contains "profile work"
+	assert_output_contains "brew    bundle ~/.dotfiles/Brewfile"
+	assert_output_contains "brew    bundle ~/.dotfiles/profiles/work/Brewfile"
+	assert_not_logged brew "bundle install"
+}
+
+test_dry_run_without_homebrew_lists_both_brewfiles() {
+	new_sandbox
+	rm "$SANDBOX/fakebin/brew"
+	run_install provision --dry-run --profile=work
+	assert_status 0
+	assert_output_contains "brew    bundle ~/.dotfiles/Brewfile"
+	assert_output_contains "brew    bundle ~/.dotfiles/profiles/work/Brewfile"
+}
+
+test_work_profile_lists_its_packages_and_trusts_its_taps() {
+	local file="$REPO/profiles/work/Brewfile" pkg tap
+	for pkg in 'cask "notion-calendar"' 'cask "docker-desktop"' 'cask "slack"' 'cask "zoom"' \
+		'brew "kubernetes-cli"' 'brew "helm"' 'brew "k9s"' 'brew "kubeseal"' 'brew "kustomize"' \
+		'brew "localstack"' 'brew "awscli-local"' 'brew "fluxcd/tap/flux"' 'brew "txn2/tap/kubefwd"' \
+		'brew "common-fate/granted/granted"' 'brew "atlassian/acli/acli"'; do
+		grep -qxF "$pkg" "$file" || fail "work Brewfile is missing $pkg"
+	done
+	for tap in $(cat "$REPO/Brewfile" "$REPO"/profiles/*/Brewfile | sed -n 's/^brew "\([^/"]*\/[^/"]*\)\/.*/\1/p' | sort -u); do
+		grep -qxF "tap \"$tap\", trusted: true" "$file" || fail "tap $tap is not listed as trusted"
+	done
+	for pkg in notion-calendar docker-desktop; do
+		grep -q "\"$pkg\"" "$REPO/Brewfile" && fail "$pkg belongs in the work profile, not the base"
+	done
+	for pkg in tableplus tailscale-app spotify; do
+		grep -qxF "cask \"$pkg\"" "$REPO/Brewfile" || fail "base Brewfile is missing $pkg"
+	done
 }
 
 # --- runner ------------------------------------------------------------------

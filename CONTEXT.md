@@ -16,6 +16,10 @@ _Avoid_: Symlinking, setup
 The Install step that puts packages and tools on the machine.
 _Avoid_: Brew step, setup
 
+**Profile**:
+An optional named layer (work, personal) a machine adds on top of the base config; chosen once with `--profile` and remembered in `~/.dotfiles-profile`.
+_Avoid_: Role, machine type, environment
+
 **Stub**:
 A machine-owned file in `$HOME` that other tools also write to, which Link only ensures contains the one line pulling in the repo's version.
 _Avoid_: Wrapper, loader, symlink

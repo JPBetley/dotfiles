@@ -1,0 +1,30 @@
+# Work Profile: added on top of the base Brewfile by ./install --profile work.
+# Third-party taps are trusted so Homebrew installs their formulae.
+
+tap "fluxcd/tap", trusted: true
+tap "txn2/tap", trusted: true
+tap "common-fate/granted", trusted: true
+tap "atlassian/acli", trusted: true
+
+# --- Kubernetes ---
+brew "kubernetes-cli"
+brew "helm"
+brew "k9s"
+brew "kubeseal"
+brew "kustomize"
+brew "fluxcd/tap/flux"
+brew "txn2/tap/kubefwd"
+
+# --- AWS ---
+brew "localstack"
+brew "awscli-local"
+brew "common-fate/granted/granted"
+
+# --- Atlassian ---
+brew "atlassian/acli/acli"
+
+# --- Apps ---
+cask "docker-desktop"
+cask "notion-calendar"
+cask "slack"
+cask "zoom"

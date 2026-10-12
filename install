@@ -7,7 +7,7 @@ set -euo pipefail
 
 usage() {
 	cat <<'USAGE'
-Usage: ./install [step...] [--dry-run]
+Usage: ./install [step...] [--profile <name>] [--dry-run]
 
 Steps:
   provision  Install the Command Line Tools, Homebrew and the Brewfile's
@@ -19,8 +19,12 @@ Steps:
 With no step, every default step runs: provision, then link. defaults never runs unless named.
 
 Options:
-  --dry-run  Print what would happen and change nothing
-  -h, --help Show this help
+  --profile <name>  Add a Profile (a folder under profiles/, e.g. work or
+                    personal) on top of the base. Saved in ~/.dotfiles-profile
+                    and reused by later runs; "none" clears it
+  --dry-run         Print what would happen and change nothing (a --profile
+                    is shown but not saved)
+  -h, --help        Show this help
 USAGE
 }
 
@@ -29,17 +33,27 @@ ALL_STEPS="provision link defaults"
 
 DRY_RUN=0
 steps=""
-for arg in "$@"; do
-	case "$arg" in
+profile_arg=""
+profile_given=0
+while [ $# -gt 0 ]; do
+	case "$1" in
 		--dry-run) DRY_RUN=1 ;;
+		--profile)
+			[ $# -ge 2 ] || { echo "install: --profile needs a name" >&2; usage >&2; exit 2; }
+			profile_arg="$2"
+			profile_given=1
+			shift
+			;;
+		--profile=*) profile_arg="${1#--profile=}"; profile_given=1 ;;
 		-h | --help) usage; exit 0 ;;
 		*)
 			case " $ALL_STEPS " in
-				*" $arg "*) steps="$steps $arg" ;;
-				*) echo "install: unknown step '$arg'" >&2; usage >&2; exit 2 ;;
+				*" $1 "*) steps="$steps $1" ;;
+				*) echo "install: unknown step '$1'" >&2; usage >&2; exit 2 ;;
 			esac
 			;;
 	esac
+	shift
 done
 steps="${steps:-$DEFAULT_STEPS}"
 
@@ -73,9 +87,64 @@ act() {
 	[ "$DRY_RUN" -eq 1 ] || "$@"
 }
 
+# --- Profile -----------------------------------------------------------------
+
+# A Profile is an optional named layer (profiles/<name>/) on top of the base.
+PROFILE_FILE="$HOME/.dotfiles-profile"
+
+# Print the profiles that exist, comma-separated.
+list_profiles() {
+	local dir names=""
+	for dir in "$DOTFILES"/profiles/*/; do
+		[ -d "$dir" ] || continue
+		dir="${dir%/}"
+		names="${names:+$names, }${dir##*/}"
+	done
+	echo "$names"
+}
+
+is_profile() {
+	[ -n "$1" ] && [ "${1#*/}" = "$1" ] && [ -d "$DOTFILES/profiles/$1" ] && [ "${1#.}" = "$1" ]
+}
+
+save_profile() {
+	echo "$1" > "$PROFILE_FILE"
+}
+
+PROFILE=""
+saved_profile="$(cat "$PROFILE_FILE" 2> /dev/null || true)"
+if [ "$profile_given" -eq 1 ]; then
+	[ "$profile_arg" = none ] || PROFILE="$profile_arg"
+	if [ "$profile_arg" != none ] && ! is_profile "$PROFILE"; then
+		echo "install: unknown profile '$PROFILE'; profiles: $(list_profiles) (or none)" >&2
+		exit 2
+	fi
+elif [ -n "$saved_profile" ]; then
+	PROFILE="$saved_profile"
+	if ! is_profile "$PROFILE"; then
+		echo "install: $(pretty "$PROFILE_FILE") names unknown profile '$PROFILE'; profiles: $(list_profiles)" >&2
+		echo "Rerun with --profile <name>, or --profile none to clear it." >&2
+		exit 2
+	fi
+fi
+
+# Save a --profile choice for later runs.
+remember_profile() {
+	[ "$profile_given" -eq 1 ] && [ "$PROFILE" != "$saved_profile" ] || return 0
+	if [ -n "$PROFILE" ]; then
+		act "profile $PROFILE (saved in $(pretty "$PROFILE_FILE"))" save_profile "$PROFILE"
+	else
+		act "profile none (removed $(pretty "$PROFILE_FILE"))" rm -f "$PROFILE_FILE"
+	fi
+}
+
 # --- Provision ---------------------------------------------------------------
 
 BREWFILE="$DOTFILES/Brewfile"
+# The base Brewfile, then the Profile's.
+BREWFILES=("$BREWFILE")
+[ -z "$PROFILE" ] || [ ! -f "$DOTFILES/profiles/$PROFILE/Brewfile" ] ||
+	BREWFILES+=("$DOTFILES/profiles/$PROFILE/Brewfile")
 
 # Where Homebrew lives when it isn't on the PATH (Apple silicon, then Intel).
 BREW_PATHS="${DOTFILES_BREW_PATHS:-/opt/homebrew/bin/brew /usr/local/bin/brew}"
@@ -94,7 +163,7 @@ install_homebrew() {
 }
 
 step_provision() {
-	local brew missing
+	local brew brewfile missing
 	# brew bundle install uninstalls unlisted packages when these are set.
 	unset HOMEBREW_BUNDLE_INSTALL_CLEANUP HOMEBREW_BUNDLE_FORCE_INSTALL_CLEANUP
 	if ! xcode-select -p > /dev/null 2>&1; then
@@ -107,25 +176,34 @@ step_provision() {
 	if ! brew="$(find_brew)"; then
 		act "brew    install Homebrew" install_homebrew
 		if [ "$DRY_RUN" -eq 1 ]; then
-			echo "brew    bundle $(pretty "$BREWFILE")"
+			for brewfile in "${BREWFILES[@]}"; do
+				echo "brew    bundle $(pretty "$brewfile")"
+			done
 			return
 		fi
 		brew="$(find_brew)"
 	fi
 	eval "$("$brew" shellenv)"
-	if ! missing="$("$brew" bundle check --verbose --no-upgrade --file="$BREWFILE" 2>&1)"; then
-		act "brew    bundle $(pretty "$BREWFILE")
+	for brewfile in "${BREWFILES[@]}"; do
+		if ! missing="$("$brew" bundle check --verbose --no-upgrade --file="$brewfile" 2>&1)"; then
+			act "brew    bundle $(pretty "$brewfile")
 $(sed -n 's/^→ \(.*\) needs to be installed.*/      + \1/p' <<< "$missing")" \
-			"$brew" bundle install --no-upgrade --file="$BREWFILE"
-	fi
+				"$brew" bundle install --no-upgrade --file="$brewfile"
+		fi
+	done
 	report_unlisted "$brew"
 }
 
-# Print what is installed but not in the Brewfile. Provision never removes it.
+# Print what is installed but in neither the base nor the Profile's Brewfile.
+# Provision never removes it.
 report_unlisted() {
-	local extras
-	extras="$("$1" bundle cleanup --file="$BREWFILE")" && return
-	echo "Installed but not in the Brewfile (nothing was uninstalled; add to keep):"
+	local extras all where="the Brewfile"
+	all="$(mktemp)"
+	cat "${BREWFILES[@]}" > "$all"
+	extras="$("$1" bundle cleanup --file="$all")" && { rm -f "$all"; return; }
+	rm -f "$all"
+	[ "${#BREWFILES[@]}" -eq 1 ] || where="the Brewfile or the $PROFILE Profile's"
+	echo "Installed but not in $where (nothing was uninstalled; add to keep):"
 	awk '
 		/^Would uninstall .*:$/ { sub(/^Would uninstall /, ""); group = $0; next }
 		/^Would untap:$/ { group = "taps:"; next }
@@ -271,9 +349,12 @@ step_defaults() {
 # --- main --------------------------------------------------------------------
 
 [ "$DRY_RUN" -eq 0 ] || echo "Dry run: nothing will be changed."
+remember_profile
 for step in $steps; do
 	"step_$step"
 done
 [ "$changes" -gt 0 ] || echo "Nothing to do."
+[ -n "$PROFILE" ] ||
+	echo "Note: no Profile, so only the base was applied; add one with ./install --profile <name> ($(list_profiles))."
 [ -d "$HOME/.dotfiles-custom" ] ||
 	echo "Note: no ~/.dotfiles-custom; create it (e.g. ~/.dotfiles-custom/shell/.aliases) for personal config you keep out of git."
