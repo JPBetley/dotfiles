@@ -16,7 +16,9 @@ if [[ "$queue" != sync ]]; then
     add queue "#93c5fd" "herd php artisan queue:listen --tries=1 --timeout=0"
 fi
 
-if ! herd php artisan schedule:list | grep -q "No scheduled tasks"; then
+# schedule:work and schedule:list arrived in Laravel 8; older apps have neither.
+if herd php artisan list --raw | grep -qE '^schedule:work[[:space:]]' &&
+    ! herd php artisan schedule:list | grep -q "No scheduled tasks"; then
     add schedule "#c4b5fd" "herd php artisan schedule:work"
 fi
 
@@ -24,8 +26,14 @@ if [[ -d vendor/laravel/pail ]]; then
     add logs "#fb7185" "herd php artisan pail --timeout=0"
 fi
 
-if [[ -f package.json ]] && jq -e '.scripts.dev' package.json >/dev/null; then
-    add vite "#fdba74" "npm run dev"
+# Laravel Mix's `dev` builds once and exits, which would make concurrently -k
+# stop everything, so prefer its `watch` script.
+if [[ -f package.json ]]; then
+    if jq -e '.scripts.watch' package.json >/dev/null; then
+        add watch "#fdba74" "npm run watch"
+    elif jq -e '.scripts.dev' package.json >/dev/null; then
+        add vite "#fdba74" "npm run dev"
+    fi
 fi
 
 if [[ ${#names[@]} -eq 0 ]]; then

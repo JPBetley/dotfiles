@@ -40,7 +40,10 @@ fi
 
 if [[ -f package.json ]]; then
     npm install
+    # Vite apps build with `build`; Laravel Mix apps with a one-off `dev`.
     if jq -e '.scripts.build' package.json >/dev/null; then
         npm run build
+    elif jq -e '.scripts.watch' package.json >/dev/null; then
+        npm run dev
     fi
 fi

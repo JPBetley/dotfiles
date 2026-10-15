@@ -17,6 +17,9 @@ FAKE_HERD='#!/bin/bash
 echo "$*" >> "$HOME/fakebin/herd.log"
 case "$*" in
 	links) cat "$HOME/herd-links" 2>/dev/null ;;
+	"php artisan list --raw")
+		echo "schedule:run                Run the scheduled commands"
+		[ -e "$HOME/old-laravel" ] || echo "schedule:work               Start the schedule worker" ;;
 	"php artisan about --only=drivers --json")
 		[ -e "$HOME/php-warnings" ] && printf "\nDeprecated: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated\n"
 		echo "{\"drivers\":{\"queue\":\"$(cat "$HOME/queue-driver" 2>/dev/null || echo sync)\"}}" ;;
@@ -188,6 +191,15 @@ test_setup_installs_and_builds_frontend() {
 	assert_logged npm "run build"
 }
 
+test_setup_builds_laravel_mix_assets_once() {
+	new_app webapp abuja
+	write package.json '{"scripts":{"dev":"mix","watch":"mix watch"}}'
+	run_script setup
+	assert_status 0
+	assert_logged npm "install"
+	assert_logged npm "run dev"
+}
+
 test_setup_skips_build_without_a_build_script() {
 	new_app bisnow vancouver
 	write package.json '{"scripts":{"dev":"vite"}}'
@@ -195,6 +207,7 @@ test_setup_skips_build_without_a_build_script() {
 	assert_status 0
 	assert_logged npm "install"
 	assert_not_logged npm "run build"
+	assert_not_logged npm "run dev"
 }
 
 # --- run ---------------------------------------------------------------------
@@ -225,6 +238,24 @@ test_run_skips_vite_when_package_json_has_no_dev_script() {
 	run_script run
 	assert_status 0
 	assert_logged npx "concurrently -k -n queue -c #93c5fd herd php artisan queue:listen --tries=1 --timeout=0"
+}
+
+test_run_skips_schedule_on_laravel_without_schedule_work() {
+	new_app webapp abuja
+	touch "$SANDBOX/old-laravel" "$SANDBOX/has-schedule"
+	echo redis > "$SANDBOX/queue-driver"
+	run_script run
+	assert_status 0
+	assert_logged npx "concurrently -k -n queue -c #93c5fd herd php artisan queue:listen --tries=1 --timeout=0"
+	assert_not_logged herd "schedule:list"
+}
+
+test_run_prefers_laravel_mix_watch_over_dev() {
+	new_app webapp abuja
+	write package.json '{"scripts":{"dev":"mix","watch":"mix watch"}}'
+	run_script run
+	assert_status 0
+	assert_logged npx "concurrently -k -n watch -c #fdba74 npm run watch"
 }
 
 test_run_with_nothing_to_start_says_so() {
