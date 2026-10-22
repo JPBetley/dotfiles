@@ -31,6 +31,11 @@ herd secure "$site_name"
 herd restart
 
 herd composer install --no-interaction --prefer-dist --optimize-autoloader
+# Herd's composer wrapper can bail (e.g. on PHP startup warnings) yet exit 0.
+if [[ ! -f vendor/autoload.php ]]; then
+    echo "composer install did not produce vendor/autoload.php; check \`php -v\` for PHP startup warnings" >&2
+    exit 1
+fi
 
 # Keep the key copied from the root .env; only generate one when it's empty.
 if ! grep -qE "^APP_KEY=[\"']?[^\"'[:space:]]" .env; then

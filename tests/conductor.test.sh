@@ -175,6 +175,16 @@ test_setup_fails_without_any_env_file() {
 	assert_not_logged herd "link"
 }
 
+test_setup_fails_when_composer_install_leaves_no_vendor() {
+	new_app bisnow vancouver
+	rm "$APP/vendor/autoload.php"
+	write package.json '{"scripts":{"build":"vite build"}}'
+	run_script setup
+	assert_status 1
+	assert_output_contains "composer install did not produce vendor/autoload.php"
+	[ ! -e "$SANDBOX/fakebin/npm.log" ] || fail "expected npm not to run. Log:"$'\n'"$(cat "$SANDBOX/fakebin/npm.log")"
+}
+
 test_setup_skips_npm_without_package_json() {
 	new_app outbound lima
 	run_script setup
