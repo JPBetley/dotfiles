@@ -13,3 +13,6 @@ if herd links | grep -qE "^\|[[:space:]]*${site_name}[[:space:]]*\|"; then
     herd unsecure "$site_name" 2>/dev/null || true
     herd unlink "$site_name"
 fi
+
+# Drop the local databases only this workspace used.
+drop_workspace_databases "${ORCA_ROOT_PATH:-}"

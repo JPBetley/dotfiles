@@ -370,6 +370,75 @@ test_archive_unlinks_a_branch_style_workspace() {
 	assert_logged herd "unlink bisnow-jpbetley-fix-thing"
 }
 
+new_workspace_with_root() {
+	new_app bisnow lima
+}
+
+# fake_mysql <database>... — a mysql whose SHOW DATABASES lists these and that
+# logs every call to ~/fakebin/mysql.log.
+fake_mysql() {
+	add_fake mysql '#!/bin/bash
+echo "$*" >> "$HOME/fakebin/mysql.log"
+case "$*" in *"SHOW DATABASES"*) cat "$HOME/mysql-databases" ;; esac'
+	printf '%s\n' "$@" > "$SANDBOX/mysql-databases"
+}
+
+test_archive_drops_databases_only_the_workspace_uses() {
+	new_workspace_with_root
+	printf '%s\n' 'DB_DATABASE=bisnow_webapp' > "$ROOT/.env"
+	printf '%s\n' 'DB_DATABASE=clean_webapp' > "$ROOT/.env.testing"
+	write .env 'DB_DATABASE=bisnow_webapp'
+	write .env.testing 'DB_DATABASE=clean_webapp_lima'
+	fake_mysql bisnow_webapp clean_webapp clean_webapp_test_1 clean_webapp_lima \
+		clean_webapp_lima_test_1 clean_webapp_lima_test_12 clean_webapp_lima_v2
+	run_script archive
+	assert_status 0
+	assert_logged mysql '-uroot -e DROP DATABASE `clean_webapp_lima`'
+	assert_logged mysql '-uroot -e DROP DATABASE `clean_webapp_lima_test_1`'
+	assert_logged mysql '-uroot -e DROP DATABASE `clean_webapp_lima_test_12`'
+	assert_not_logged mysql 'DROP DATABASE `clean_webapp`'
+	assert_not_logged mysql 'DROP DATABASE `clean_webapp_test_1`'
+	assert_not_logged mysql 'DROP DATABASE `bisnow_webapp`'
+	assert_not_logged mysql 'clean_webapp_lima_v2'
+}
+
+test_archive_keeps_databases_shared_with_the_main_checkout() {
+	new_workspace_with_root
+	printf '%s\n' 'DB_DATABASE=clean_webapp' > "$ROOT/.env.testing"
+	write .env.testing 'DB_DATABASE="clean_webapp" # shared'
+	fake_mysql clean_webapp clean_webapp_test_1
+	run_script archive
+	assert_status 0
+	assert_not_logged mysql 'DROP'
+}
+
+test_archive_keeps_databases_on_a_remote_host() {
+	new_workspace_with_root
+	write .env 'WEBAPP_DB_HOST=core-dev.bisnow.cloud'$'\n''WEBAPP_DB_DATABASE=webapp_lima'$'\n''DB_HOST=127.0.0.1'$'\n''DB_DATABASE=app_lima'
+	fake_mysql webapp_lima app_lima
+	run_script archive
+	assert_status 0
+	assert_not_logged mysql 'webapp_lima'
+	assert_logged mysql '-uroot -e DROP DATABASE `app_lima`'
+}
+
+test_archive_ignores_sqlite_databases() {
+	new_workspace_with_root
+	write .env.testing 'DB_DATABASE=database/database.sqlite'$'\n''OTHER_DB_DATABASE=:memory:'
+	fake_mysql database
+	run_script archive
+	assert_status 0
+	assert_not_logged mysql 'DROP'
+}
+
+test_archive_succeeds_without_mysql() {
+	new_workspace_with_root
+	write .env 'DB_DATABASE=app_lima'
+	run_script archive
+	assert_status 0
+	assert_output_contains "Skipping database cleanup: mysql not found"
+}
+
 # --- runner ------------------------------------------------------------------
 
 for t in $(declare -F | awk '{print $3}' | grep '^test_' | grep -- "${1:-}"); do
