@@ -63,4 +63,5 @@ The terms used here are defined in [`CONTEXT.md`](CONTEXT.md).
 | `git/` | Shared git config and global ignore, included by the `~/.gitconfig` Stub |
 | `bin/` | Scripts on the `PATH`, such as `t` (an fzf picker over `~/Code` that opens or switches tmux sessions) |
 | `macos/` | The opt-in macOS defaults |
+| `nvm/` | `prune.sh` (uninstalls Node versions nvm no longer resolves to; `--dry-run` to preview) and the launch agent that runs it every Monday, logging to `~/Library/Logs/nvm-prune.log` |
 | `tests/install.test.sh` | End-to-end tests for Install, run in a throwaway `$HOME` with a fake `brew` |

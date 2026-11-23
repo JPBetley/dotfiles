@@ -223,6 +223,7 @@ shell/.vimrc      .vimrc
 shell/.vim        .vim
 shell/.tmux.conf  .tmux.conf
 shell/starship.toml  .config/starship.toml
+nvm/dotfiles.nvm-prune.plist  Library/LaunchAgents/dotfiles.nvm-prune.plist
 "
 
 move() {

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly: prune Node versions nvm no longer resolves to (nvm/prune.sh).
+  Linked into ~/Library/LaunchAgents by ./install; launchd loads it at login.
+  Load it now:  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dotfiles.nvm-prune.plist
+  Run it now:   launchctl kickstart gui/$(id -u)/dotfiles.nvm-prune
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dotfiles.nvm-prune</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>mkdir -p "$HOME/Library/Logs" &amp;&amp; exec "$HOME/.dotfiles/nvm/prune.sh" &gt;&gt; "$HOME/Library/Logs/nvm-prune.log" 2&gt;&amp;1</string>
+	</array>
+	<!-- Mondays at 10:00. If the Mac was asleep, launchd runs it on wake. -->
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Weekday</key>
+		<integer>1</integer>
+		<key>Hour</key>
+		<integer>10</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>ProcessType</key>
+	<string>Background</string>
+</dict>
+</plist>
